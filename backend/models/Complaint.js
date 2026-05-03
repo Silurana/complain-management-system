@@ -28,8 +28,12 @@ const complaintSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    imageUrl: {
+      type: String,
+      default: "",
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Complaint", complaintSchema);

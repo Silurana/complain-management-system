@@ -1,124 +1,23 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 import {
-  FileText,
-  Clock,
-  CheckCircle,
-  XCircle,
-  LogOut,
   Save,
-  Edit,
   KeyRound,
-  User,
-  Trash2,
+  UserPlus,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { AdminOverview } from "../components/dashboard/AdminOverview";
+import { AdminComplaints } from "../components/dashboard/AdminComplaints";
+import { AdminUsers } from "../components/dashboard/AdminUsers";
+import type { Stats, Complaint, UserProfile, AdminProfile } from "../types";
+import { LoaderOverlay } from "../components/shared/LoaderOverlay";
+import { Modal } from "../components/shared/Modal";
+import { AdminSidebar } from "../components/dashboard/AdminSidebar";
+import { AdminHeader } from "../components/dashboard/AdminHeader";
+import { AdminProfileView } from "../components/dashboard/AdminProfileView";
+import API_BASE_URL from "../apiConfig";
 
-// Interfaces
-interface Stats {
-  total: number;
-  pending: number;
-  in_progress: number;
-  resolved: number;
-  rejected: number;
-}
-
-interface Complaint {
-  id: number;
-  title: string;
-  subject: string;
-  description: string;
-  status: string;
-  response: string;
-}
-
-interface UserProfile {
-  fullName: string;
-  email: string;
-  regNo: string;
-}
-
-interface AdminProfile {
-  fullName: string;
-  email: string;
-  regNo: string;
-}
-
-// Loader Overlay
-function LoaderOverlay({ show }: { show: boolean }) {
-  if (!show) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/20 backdrop-blur-0 transition-opacity duration-300 animate-fadeIn">
-      <div className="flex flex-col items-center">
-        <div className="loader mb-4" />
-        <span className="text-xl font-semibold text-green-700 animate-pulse">
-          Loading...
-        </span>
-      </div>
-      <style>{`
-        .loader {
-          border: 5px solid #e0e7ef;
-          border-top: 5px solid #22c55e;
-          border-radius: 50%;
-          width: 56px;
-          height: 56px;
-          animation: spin 0.85s linear infinite;
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// Overlay Message
-function OverlayMessage({ message }: { message: string | null }) {
-  if (!message) return null;
-  return (
-    <>
-      <div className="fixed inset-0 bg-white/60 backdrop-blur-[4px] z-40"></div>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <span className="text-3xl font-bold text-green-700 bg-white/90 rounded-2xl px-10 py-8 shadow-2xl animate-fadeIn">
-          {message}
-        </span>
-      </div>
-    </>
-  );
-}
-
-// Modal
-function Modal({
-  open,
-  onClose,
-  children,
-  title,
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-  title: string;
-}) {
-  if (!open) return null;
-  return (
-    <>
-      <div className="fixed inset-0 bg-white/70 backdrop-blur-[2px] z-40" onClick={onClose}></div>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <div className="bg-white p-10 rounded-3xl shadow-2xl min-w-[360px] max-w-lg relative">
-          <h2 className="text-2xl font-semibold text-green-700 mb-4">{title}</h2>
-          <button
-            className="absolute top-4 right-4 text-gray-400 hover:text-red-400"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            ✕
-          </button>
-          {children}
-        </div>
-      </div>
-    </>
-  );
-}
-
-const AdminDashboard: React.FC = () => {
+const AdminDashboard = () => {
   // Data states
   const [stats, setStats] = useState<Stats>({
     total: 0,
@@ -135,10 +34,9 @@ const AdminDashboard: React.FC = () => {
     regNo: "",
   });
 
-  const [view, setView] =
-    useState<"dashboard" | "complaints" | "users" | "profile" | "changePassword">(
-      "dashboard"
-    );
+  const [view, setView] = useState<
+    "dashboard" | "complaints" | "users" | "profile"
+  >("dashboard");
 
   // Modal states
   const [editProfileModal, setEditProfileModal] = useState(false);
@@ -154,7 +52,7 @@ const AdminDashboard: React.FC = () => {
   // Complaint editing
   const [editComplaintModal, setEditComplaintModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
-    null
+    null,
   );
   const [complaintUpdate, setComplaintUpdate] = useState<{
     status: string;
@@ -164,30 +62,77 @@ const AdminDashboard: React.FC = () => {
     response: "",
   });
 
-  // Loader and overlay
+  // Admin creation
+  const [addAdminModal, setAddAdminModal] = useState(false);
+  const [newAdmin, setNewAdmin] = useState({
+    username: "",
+    email: "",
+    password: "",
+    regNo: "",
+  });
+
+  // UI States
   const [isLoadingOverlay, setIsLoadingOverlay] = useState(false);
-  const [overlayMessage, setOverlayMessage] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Filter for complaints by status
-  const [
-    complaintStatusFilter,
-    setComplaintStatusFilter,
-  ] = useState<
-    "All" | "Pending" | "In Progress" | "Resolved" | "Rejected"
-  >("All");
+  const [complaintStatusFilter, setComplaintStatusFilter] =
+    useState<string>("All");
 
   useEffect(() => {
     fetchStats();
     fetchComplaints();
     fetchUsers();
     fetchProfile();
+
+    // Real-time auto-refresh (every 30 seconds)
+    const interval = setInterval(() => {
+      fetchStats();
+      fetchComplaints();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
+
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/create-admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          username: newAdmin.username,
+          email: newAdmin.email,
+          password: newAdmin.password,
+          regiNo: newAdmin.regNo,
+        }),
+      });
+      if (res.ok) {
+        toast.success("New admin added successfully");
+        setAddAdminModal(false);
+        setNewAdmin({ username: "", email: "", password: "", regNo: "" });
+      } else {
+        const data = await res.json();
+        toast.error(data.message || "Failed to add admin");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred");
+    }
+  };
+
 
   const fetchStats = async () => {
     try {
-      const res = await fetch("http://localhost:8080/admin/stats", {
+      const res = await fetch(`${API_BASE_URL}/admin/stats`, {
         credentials: "include",
       });
+      if (res.status === 403 || res.status === 401) {
+        window.location.href = "/";
+        return;
+      }
       if (res.ok) {
         const data: Stats = await res.json();
         setStats(data);
@@ -199,9 +144,13 @@ const AdminDashboard: React.FC = () => {
 
   const fetchComplaints = async () => {
     try {
-      const res = await fetch("http://localhost:8080/admin/complaints", {
+      const res = await fetch(`${API_BASE_URL}/admin/complaints`, {
         credentials: "include",
       });
+      if (res.status === 403 || res.status === 401) {
+        window.location.href = "/";
+        return;
+      }
       if (res.ok) {
         const data: Complaint[] = await res.json();
         setComplaints(data);
@@ -213,9 +162,13 @@ const AdminDashboard: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch("http://localhost:8080/admin/users", {
+      const res = await fetch(`${API_BASE_URL}/admin/users`, {
         credentials: "include",
       });
+      if (res.status === 403 || res.status === 401) {
+        window.location.href = "/";
+        return;
+      }
       if (res.ok) {
         const data: UserProfile[] = await res.json();
         setUsers(data);
@@ -227,9 +180,13 @@ const AdminDashboard: React.FC = () => {
 
   const fetchProfile = async () => {
     try {
-      const res = await fetch("http://localhost:8080/user/profile", {
+      const res = await fetch(`${API_BASE_URL}/admin/profile`, {
         credentials: "include",
       });
+      if (res.status === 403 || res.status === 401) {
+        window.location.href = "/";
+        return;
+      }
       if (res.ok) {
         const data: AdminProfile = await res.json();
         setProfile(data);
@@ -240,120 +197,105 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleComplaintEdit = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
-    setComplaintUpdate({
-      status: complaint.status,
-      response: complaint.response || "",
-    });
-    setEditComplaintModal(true);
-  };
-
-  const handleUpdateComplaint = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedComplaint) return;
-
-    setOverlayMessage("Updating complaint...");
-
+  const deleteUser = async (email: string) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
     try {
-      const res = await fetch("http://localhost:8080/admin/complaints/update", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          id: selectedComplaint.id, // REQUIRED BY BACKEND
-          status: complaintUpdate.status,
-          response: complaintUpdate.response,
-        }),
-      });
-
-      if (res.ok) {
-        setOverlayMessage("Complaint updated successfully!");
-
-        setTimeout(() => {
-          setOverlayMessage(null);
-          setEditComplaintModal(false);
-          fetchComplaints();
-          fetchStats();
-        }, 1700);
-      } else {
-        alert("Failed to update complaint.");
-        setOverlayMessage(null);
-      }
-    } catch (err) {
-      console.error(err);
-      setOverlayMessage(null);
-    }
-  };
-
-  // Delete user
-  const handleDeleteUser = async (regNo: string) => {
-    if (!window.confirm("Delete this user?")) return;
-    setOverlayMessage("Deleting user...");
-    try {
-      const res = await fetch(`http://localhost:8080/admin/users/${regNo}`, {
+      const res = await fetch(`${API_BASE_URL}/admin/users/${email}`, {
         method: "DELETE",
         credentials: "include",
       });
       if (res.ok) {
-        setOverlayMessage("User deleted.");
-        setTimeout(() => {
-          setOverlayMessage(null);
-          fetchUsers();
-        }, 1200);
+        toast.success("Account successfully purged");
+        fetchUsers();
       } else {
-        alert("Failed to delete user.");
-        setOverlayMessage(null);
+        toast.error("Failed to delete user");
       }
     } catch (err) {
       console.error(err);
-      setOverlayMessage(null);
+      toast.error("An error occurred");
     }
   };
 
-  // Update profile
+  const handleDeleteComplaint = async (id: string) => {
+    if (
+      !window.confirm("Are you sure you want to permanently erase this record?")
+    )
+      return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/complaints/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        toast.success("Record expunged");
+        fetchComplaints();
+        fetchStats();
+      } else {
+        toast.error("Failed to delete record");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred");
+    }
+  };
+
+  const handleUpdateComplaint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedComplaint) return;
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/admin/complaints/${selectedComplaint.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(complaintUpdate),
+        },
+      );
+      if (res.ok) {
+        toast.success("Complaint updated successfully!");
+        fetchStats();
+        fetchComplaints();
+        setEditComplaintModal(false);
+      } else {
+        toast.error("Failed to update complaint");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred");
+    }
+  };
+
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOverlayMessage("Updating profile...");
     try {
-      const res = await fetch("http://localhost:8080/user/profile", {
+      const res = await fetch(`${API_BASE_URL}/admin/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(tempProfile),
       });
       if (res.ok) {
-        setOverlayMessage("Profile updated!");
-        setTimeout(() => {
-          setOverlayMessage(null);
-          setProfile(tempProfile);
-          setEditProfileModal(false);
-        }, 1600);
+        toast.success("Profile updated successfully!");
+        fetchProfile();
+        setEditProfileModal(false);
       } else {
-        alert("Failed to update profile.");
-        setOverlayMessage(null);
+        toast.error("Failed to update profile");
       }
     } catch (err) {
       console.error(err);
-      setOverlayMessage(null);
+      toast.error("An error occurred");
     }
   };
 
-  // Change password
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOverlayMessage("Changing password...");
-    if (
-      !passwordFields.newPassword ||
-      passwordFields.newPassword !== passwordFields.confirm
-    ) {
-      alert("Passwords do not match or empty.");
-      setOverlayMessage(null);
+    if (passwordFields.newPassword !== passwordFields.confirm) {
+      toast.error("Verification mismatch.");
       return;
     }
     try {
-      const res = await fetch("http://localhost:8080/user/changePassword", {
+      const res = await fetch(`${API_BASE_URL}/admin/changePassword`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -363,437 +305,339 @@ const AdminDashboard: React.FC = () => {
         }),
       });
       if (res.ok) {
-        setOverlayMessage("Password changed successfully!");
-        setTimeout(() => {
-          setOverlayMessage(null);
-          setChangePasswordModal(false);
-          setPasswordFields({
-            currentPassword: "",
-            newPassword: "",
-            confirm: "",
-          });
-        }, 1700);
+        toast.success("Password updated successfully!");
+        setChangePasswordModal(false);
+        setPasswordFields({
+          currentPassword: "",
+          newPassword: "",
+          confirm: "",
+        });
       } else {
-        alert("Failed to change password.");
-        setOverlayMessage(null);
+        const error = await res.text();
+        toast.error(error || "Failed to update password");
       }
     } catch (err) {
       console.error(err);
-      setOverlayMessage(null);
+      toast.error("An error occurred");
     }
   };
 
-  // Sidebar cards green
-  const statCards = [
-    { title: "Total Complaints", value: stats.total, icon: FileText, color: "text-green-600" },
-    { title: "Pending", value: stats.pending, icon: Clock, color: "text-amber-500" },
-    { title: "In Progress", value: stats.in_progress, icon: Clock, color: "text-yellow-500" },
-    { title: "Resolved", value: stats.resolved, icon: CheckCircle, color: "text-green-500" },
-    { title: "Rejected", value: stats.rejected, icon: XCircle, color: "text-red-500" },
-  ];
-
-  // View switch with loader overlay (no blur)
   const handleViewChange = (v: typeof view) => {
     setIsLoadingOverlay(true);
+    setIsMobileMenuOpen(false);
     setTimeout(() => {
       setView(v);
       setIsLoadingOverlay(false);
-    }, 700);
+    }, 600);
   };
 
+
+
   return (
-    <div className="relative min-h-screen flex bg-gray-50">
+    <div className="relative min-h-screen flex bg-white font-['Outfit']">
       <LoaderOverlay show={isLoadingOverlay} />
-      <OverlayMessage message={!isLoadingOverlay && overlayMessage ? overlayMessage : null} />
 
-      {/* Complaint Edit Modal */}
-      <Modal open={editComplaintModal} onClose={() => setEditComplaintModal(false)} title="Update Complaint">
-        {selectedComplaint && (
-          <form onSubmit={handleUpdateComplaint} className="space-y-4">
-            <div>
-              <label className="block font-medium mb-1">Status</label>
-              <select
-                value={complaintUpdate.status}
-                onChange={(e) => setComplaintUpdate({ ...complaintUpdate, status: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg p-3 outline-none"
-                required
-              >
-                <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Resolved">Resolved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-medium mb-1">Response</label>
-              <textarea
-                value={complaintUpdate.response}
-                onChange={(e) => setComplaintUpdate({ ...complaintUpdate, response: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg p-3 resize-none outline-none"
-                rows={3}
-                required
-              />
-            </div>
-            <div className="flex justify-end gap-4 pt-2">
-              <button
-                type="button"
-                className="bg-gray-200 px-6 py-2 rounded-md font-medium hover:bg-gray-300"
-                onClick={() => setEditComplaintModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-md font-semibold hover:opacity-90"
-              >
-                <Save className="inline-block w-5 h-5 mr-1" /> Save
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* Edit Profile Modal */}
-      <Modal open={editProfileModal} onClose={() => setEditProfileModal(false)} title="Edit Profile">
-        <form onSubmit={handleProfileUpdate} className="space-y-4">
-          <div>
-            <label className="block font-medium mb-1">Full Name</label>
-            <input
-              type="text"
-              value={tempProfile.fullName}
-              onChange={(e) => setTempProfile({ ...tempProfile, fullName: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg p-3 outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-1">Email</label>
-            <input
-              type="email"
-              value={tempProfile.email}
-              onChange={(e) => setTempProfile({ ...tempProfile, email: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg p-3 outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-1">Username</label>
-            <input
-              type="text"
-              value={tempProfile.regNo}
-              onChange={(e) => setTempProfile({ ...tempProfile, regNo: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg p-3 outline-none"
-              required
-            />
-          </div>
-          <div className="flex justify-end gap-4 pt-2">
-            <button
-              type="button"
-              className="bg-gray-200 px-6 py-2 rounded-md font-medium hover:bg-gray-300"
-              onClick={() => setEditProfileModal(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-md font-semibold hover:opacity-90"
-            >
-              <Save className="inline-block w-5 h-5 mr-1" /> Save
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Change Password Modal */}
-      <Modal open={changePasswordModal} onClose={() => setChangePasswordModal(false)} title="Change Password">
-        <form onSubmit={handleChangePassword} className="space-y-4">
-          <div>
-            <label className="block font-medium mb-1">Current Password</label>
-            <input
-              type="password"
-              value={passwordFields.currentPassword}
-              onChange={(e) =>
-                setPasswordFields({ ...passwordFields, currentPassword: e.target.value })
-              }
-              className="w-full border border-gray-300 rounded-lg p-3 outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-1">New Password</label>
-            <input
-              type="password"
-              value={passwordFields.newPassword}
-              onChange={(e) => setPasswordFields({ ...passwordFields, newPassword: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg p-3 outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-1">Confirm New Password</label>
-            <input
-              type="password"
-              value={passwordFields.confirm}
-              onChange={(e) => setPasswordFields({ ...passwordFields, confirm: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg p-3 outline-none"
-              required
-            />
-          </div>
-          <div className="flex justify-end gap-4 pt-2">
-            <button
-              type="button"
-              className="bg-gray-200 px-6 py-2 rounded-md font-medium hover:bg-gray-300"
-              onClick={() => setChangePasswordModal(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-md font-semibold hover:opacity-90"
-            >
-              <KeyRound className="inline-block w-5 h-5 mr-1" /> Change
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r p-5 flex flex-col z-10">
-        <h1 className="text-xl font-bold text-green-700 mb-8">Admin Dashboard</h1>
-        <nav className="flex flex-col gap-3">
-          {[
-            { label: "Dashboard", key: "dashboard", icon: FileText },
-            { label: "Complaints", key: "complaints", icon: CheckCircle },
-            { label: "Users", key: "users", icon: User },
-            { label: "Profile", key: "profile", icon: Edit },
-          ].map((v) => (
-            <button
-              key={v.key}
-              onClick={() => handleViewChange(v.key as typeof view)}
-              className={`flex items-center gap-2 text-left px-4 py-2 rounded-lg font-medium transition ${
-                view === v.key ? "bg-green-600 text-white shadow" : "hover:bg-green-50 hover:text-green-700"
-              }`}
-            >
-              <v.icon className="w-5 h-5" />
-              {v.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
+      <AdminSidebar
+        isMobileMenuOpen={isMobileMenuOpen}
+        setIsMobileMenuOpen={setIsMobileMenuOpen}
+        view={view}
+        handleViewChange={handleViewChange}
+      />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col">
-        <header className="bg-white shadow flex items-center justify-between px-8 py-4 z-10">
-          <h2 className="text-lg font-semibold text-green-700">Campus Admin Panel</h2>
-          <div className="flex items-center gap-4">
-            <span className="font-medium text-gray-700">{profile.fullName || "Admin"}</span>
-            <button
-              onClick={() => {
-                if (!window.confirm("Are you sure you want to logout?")) return;
-                fetch("http://localhost:8080/user/logout", { credentials: "include" });
-                window.location.href = "/";
-              }}
-              className="p-2 rounded-full hover:bg-gray-100 text-red-600"
-              title="Logout"
-            >
-              <LogOut size={22} />
-            </button>
-          </div>
-        </header>
+      <main className="flex-1 flex flex-col min-w-0 bg-[#f9fafb]">
+        <AdminHeader
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          view={view}
+          profile={profile}
+        />
+
         <div
-          className={`flex-1 p-8 overflow-y-auto transition-filter duration-300 ${
-            overlayMessage && !isLoadingOverlay ? "blur-sm pointer-events-none" : ""
-          }`}
+          className="flex-1 p-6 lg:p-12 overflow-y-auto transition-all duration-700"
         >
-          {/* Dashboard */}
-          {view === "dashboard" && (
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Welcome, {profile.fullName || "Admin"}!</h1>
-              <p className="text-gray-500 mb-6">Overview of your system stats.</p>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
-                {statCards.map((stat) => {
-                  const Icon = stat.icon;
-                  return (
-                    <div
-                      key={stat.title}
-                      className="bg-white shadow p-5 rounded-xl hover:shadow-lg transition-shadow"
-                    >
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-sm font-medium">{stat.title}</h2>
-                        <Icon className={`w-5 h-5 ${stat.color}`} />
-                      </div>
-                      <p className="text-2xl font-bold mt-3">{stat.value}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Complaints Table */}
-          {view === "complaints" && (
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-2xl font-semibold mb-4 text-green-700">All Complaints</h2>
-              {/* Status filter dropdown */}
-              <div className="mb-4 flex items-center justify-between">
-                <label className="font-medium text-gray-700">
-                  Filter by Status:{" "}
-                  <select
-                    value={complaintStatusFilter}
-                    onChange={(e) =>
-                      setComplaintStatusFilter(e.target.value as
-                        | "All"
-                        | "Pending"
-                        | "In Progress"
-                        | "Resolved"
-                        | "Rejected")
-                    }
-                    className="ml-2 border border-gray-300 rounded-lg p-2"
-                  >
-                    <option value="All">All</option>
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
-                </label>
-              </div>
-
-              {complaints.filter(
-                (c) =>
-                  complaintStatusFilter === "All" || c.status === complaintStatusFilter
-              ).length === 0 ? (
-                <p className="text-gray-500">
-                  No complaints found
-                  {complaintStatusFilter !== "All" ? ` for ${complaintStatusFilter}` : ""}.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {complaints
-                    .filter(
-                      (c) =>
-                        complaintStatusFilter === "All" || c.status === complaintStatusFilter
-                    )
-                    .map((c) => (
-                      <div
-                        key={c.id}
-                        className="border border-gray-200 rounded-lg p-4 hover:bg-green-50 transition"
-                      >
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-lg font-semibold">{c.title}</h3>
-                          <span
-                            className={`text-sm px-3 py-1 rounded-full ${
-                              c.status === "Pending"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : c.status === "Resolved"
-                                ? "bg-green-100 text-green-700"
-                                : c.status === "Rejected"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-green-100 text-green-700"
-                            }`}
-                          >
-                            {c.status}
-                          </span>
-                          <button
-                            className="p-2 text-green-700 hover:text-green-900"
-                            onClick={() => handleComplaintEdit(c)}
-                            title="Edit"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </button>
-                        </div>
-                        <p className="text-gray-600">
-                          <strong>Response:</strong>{" "}
-                          {c.response && c.response.trim() ? c.response : "N/A"}
-                        </p>
-                        <p className="text-gray-600">
-                          <strong>Subject:</strong> {c.subject}
-                        </p>
-                        <p className="text-gray-500 text-sm mt-2">{c.description}</p>
-                      </div>
-                    ))}
-                </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={view}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4 }}
+            >
+              {view === "dashboard" && (
+                <AdminOverview
+                  stats={stats}
+                  users={users}
+                  complaints={complaints}
+                  handleViewChange={handleViewChange}
+                />
               )}
-            </div>
-          )}
 
-          {/* Users Table */}
-          {view === "users" && (
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-2xl font-semibold mb-4 text-green-700">All Users</h2>
-              {users.length === 0 ? (
-                <p className="text-gray-500">No users found.</p>
-              ) : (
-                <table className="w-full border border-gray-300 rounded-lg overflow-hidden shadow">
-                  <thead>
-                    <tr className="bg-green-100 text-green-700">
-                      <th className="py-2 px-4 text-left">Full Name</th>
-                      <th className="py-2 px-4 text-left">Email</th>
-                      <th className="py-2 px-4 text-left">Reg No</th>
-                      <th className="py-2 px-4 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u.regNo} className="border-t">
-                        <td className="py-2 px-4">{u.fullName}</td>
-                        <td className="py-2 px-4">{u.email}</td>
-                        <td className="py-2 px-4">{u.regNo}</td>
-                        <td className="py-2 px-4">
-                          <button
-                            className="text-red-600 hover:text-red-800 p-2"
-                            onClick={() => handleDeleteUser(u.regNo)}
-                            title="Delete User"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {view === "complaints" && (
+                <AdminComplaints
+                  complaints={complaints}
+                  complaintStatusFilter={complaintStatusFilter}
+                  setComplaintStatusFilter={setComplaintStatusFilter}
+                  onEdit={(complaint) => {
+                    setSelectedComplaint(complaint);
+                    setComplaintUpdate({
+                      status: complaint.status,
+                      response: complaint.response || "",
+                    });
+                    setEditComplaintModal(true);
+                  }}
+                  onDelete={handleDeleteComplaint}
+                />
               )}
-            </div>
-          )}
 
-          {/* Profile */}
-          {view === "profile" && (
-            <div className="bg-white p-8 rounded-2xl shadow-lg max-w-lg mx-auto transition-all duration-300">
-              <h2 className="text-2xl font-bold text-green-700 mb-4">My Profile</h2>
-              <div className="space-y-3 mb-5">
-                <div>
-                  <span className="text-sm text-gray-500 font-semibold pr-2">Full Name:</span>
-                  <span>{profile.fullName}</span>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500 font-semibold pr-2">Email:</span>
-                  <span>{profile.email}</span>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500 font-semibold pr-2">Username:</span>
-                  <span>{profile.regNo}</span>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setEditProfileModal(true)}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-md font-semibold hover:opacity-90 transition"
-                >
-                  <Edit className="inline w-5 h-5 mr-1" /> Edit Profile
-                </button>
-                <button
-                  onClick={() => setChangePasswordModal(true)}
-                  className="bg-gradient-to-r from-emerald-600 to-green-600 text-white px-6 py-2 rounded-md font-semibold hover:opacity-90 transition"
-                >
-                  <KeyRound className="inline w-5 h-5 mr-1" /> Change Password
-                </button>
-              </div>
-            </div>
-          )}
+              {view === "users" && (
+                <AdminUsers
+                  users={users}
+                  onAddAdmin={() => setAddAdminModal(true)}
+                  onDeleteUser={deleteUser}
+                />
+              )}
+
+              {view === "profile" && (
+                <AdminProfileView
+                  profile={profile}
+                  onEditProfile={() => setEditProfileModal(true)}
+                  onChangePassword={() => setChangePasswordModal(true)}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
+
+      {/* Modals for complaint update, profile edit, and password change */}
+      <Modal
+        open={editComplaintModal}
+        onClose={() => setEditComplaintModal(false)}
+        title="Resolution Protocol"
+      >
+        <form onSubmit={handleUpdateComplaint} className="space-y-6">
+          <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 mb-6">
+            <h4 className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1">
+              Issue Intel
+            </h4>
+            <p className="text-sm font-bold text-gray-900 mb-2">
+              {selectedComplaint?.title}
+            </p>
+            <p className="text-xs text-indigo-500 font-medium leading-relaxed">
+              {selectedComplaint?.description}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">
+              Status Designation
+            </label>
+            <select
+              value={complaintUpdate.status}
+              onChange={(e) =>
+                setComplaintUpdate({
+                  ...complaintUpdate,
+                  status: e.target.value,
+                })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+            >
+              <option value="Pending">Pending Audit</option>
+              <option value="In Progress">Under Review</option>
+              <option value="Resolved">Resolved</option>
+              <option value="Rejected">Dismissed</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">
+              Official Response
+            </label>
+            <textarea
+              value={complaintUpdate.response}
+              onChange={(e) =>
+                setComplaintUpdate({
+                  ...complaintUpdate,
+                  response: e.target.value,
+                })
+              }
+              placeholder="Provide detailed resolution steps..."
+              rows={4}
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors resize-none"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold shadow-lg shadow-gray-200 hover:bg-black transition-all flex items-center justify-center gap-2"
+          >
+            Index Resolution
+          </button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={editProfileModal}
+        onClose={() => setEditProfileModal(false)}
+        title="Identity Settings"
+      >
+        <form onSubmit={handleProfileUpdate} className="space-y-6">
+          <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={tempProfile.fullName}
+              onChange={(e) =>
+                setTempProfile({ ...tempProfile, fullName: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+            <input
+              type="email"
+              placeholder="Email Address"
+              value={tempProfile.email}
+              onChange={(e) =>
+                setTempProfile({ ...tempProfile, email: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+            <input
+              type="text"
+              placeholder="Service ID"
+              value={tempProfile.regNo}
+              onChange={(e) =>
+                setTempProfile({ ...tempProfile, regNo: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+          >
+            <Save size={18} /> Save Identity
+          </button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={changePasswordModal}
+        onClose={() => setChangePasswordModal(false)}
+        title="Access Security"
+      >
+        <form onSubmit={handleChangePassword} className="space-y-6">
+          <div className="space-y-4">
+            <input
+              type="password"
+              placeholder="Current Passkey"
+              value={passwordFields.currentPassword}
+              onChange={(e) =>
+                setPasswordFields({
+                  ...passwordFields,
+                  currentPassword: e.target.value,
+                })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+            <input
+              type="password"
+              placeholder="New Passkey"
+              value={passwordFields.newPassword}
+              onChange={(e) =>
+                setPasswordFields({
+                  ...passwordFields,
+                  newPassword: e.target.value,
+                })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+            <input
+              type="password"
+              placeholder="Verify Passkey"
+              value={passwordFields.confirm}
+              onChange={(e) =>
+                setPasswordFields({
+                  ...passwordFields,
+                  confirm: e.target.value,
+                })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+          >
+            <KeyRound size={18} /> Rotate Passkey
+          </button>
+        </form>
+      </Modal>
+      <Modal
+        open={addAdminModal}
+        onClose={() => setAddAdminModal(false)}
+        title="Admin Registration"
+      >
+        <form onSubmit={handleAddAdmin} className="space-y-6">
+          <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={newAdmin.username}
+              onChange={(e) =>
+                setNewAdmin({ ...newAdmin, username: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+            <input
+              type="email"
+              placeholder="Email Address"
+              value={newAdmin.email}
+              onChange={(e) =>
+                setNewAdmin({ ...newAdmin, email: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+            <input
+              type="text"
+              placeholder="Admin ID / Reg No"
+              value={newAdmin.regNo}
+              onChange={(e) =>
+                setNewAdmin({ ...newAdmin, regNo: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+            <input
+              type="password"
+              placeholder="Secure Password"
+              value={newAdmin.password}
+              onChange={(e) =>
+                setNewAdmin({ ...newAdmin, password: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-black transition-all flex items-center justify-center gap-2"
+          >
+            <UserPlus size={18} /> Register Admin
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 };
 
 export default AdminDashboard;
+

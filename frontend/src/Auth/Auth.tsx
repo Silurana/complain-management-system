@@ -1,11 +1,21 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  User,
+  Mail,
+  Lock,
+  CreditCard,
+  ArrowRight,
+} from "lucide-react";
+
+import API_BASE_URL from "../apiConfig";
 
 const AuthPage = () => {
   const navigate = useNavigate();
   const [isSignup, setIsSignup] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
 
   // Form fields
   const [fullName, setFullName] = useState("");
@@ -15,157 +25,198 @@ const AuthPage = () => {
 
   const toggleForm = () => {
     setIsSignup(!isSignup);
-    setMessage("");
   };
 
   // Helper function to read cookie by name
   const getCookie = (name: string) => {
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    const match = document.cookie.match(
+      new RegExp("(^| )" + name + "=([^;]+)"),
+    );
     return match ? match[2] : null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage("");
 
     try {
       const url = isSignup
-        ? "http://localhost:8080/user/signup"
-        : "http://localhost:8080/user/login";
+        ? `${API_BASE_URL}/user/signup`
+        : `${API_BASE_URL}/user/login`;
 
       const body = isSignup
-        ? { username: fullName, email: email.trim(), password: password.trim(), regiNo: regNo.trim(), role: "student" }
+        ? {
+            username: fullName,
+            email: email.trim(),
+            password: password.trim(),
+            regiNo: regNo.trim(),
+            role: "student",
+          }
         : { mail: email.trim(), password: password.trim() };
 
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        credentials: "include", 
+        credentials: "include",
       });
 
       if (!res.ok) throw new Error(await res.text());
 
       if (isSignup) {
-        setMessage("✅ Account created successfully!");
+        toast.success("Account created successfully!");
         setTimeout(() => setIsSignup(false), 1500);
       } else {
-        setMessage("✅ Login successful!");
+        toast.success("Login successful!");
 
         const role = getCookie("role");
         console.log(role);
 
-
-
         setTimeout(() => {
           if (role === "admin") {
-            navigate("/admindashboard");
+            window.open("/admindashboard", "_blank");
+            navigate("/auth"); // Stay on auth or redirect elsewhere in current tab
           } else {
             navigate("/dashboard");
           }
         }, 1200);
       }
-    } catch (err: any) {
-      setMessage(`❌ ${err.message || "Request failed"}`);
+    } catch (err: unknown) {
+      const error = err as Error;
+      toast.error(error.message || "Request failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white/70 backdrop-blur-md shadow-2xl rounded-3xl p-8 transition-all">
-        <h2 className="text-3xl font-bold text-center text-blue-700 mb-1">
-          {isSignup ? "Create an Account" : "Welcome Back"}
-        </h2>
-        <p className="text-center text-gray-500 mb-6">
-          {isSignup
-            ? "Join as a student to continue"
-            : "Login to your existing account"}
-        </p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignup && (
-            <>
-              <input
-                type="text"
-                placeholder="Full Name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
-              />
-              <input
-                type="text"
-                placeholder="Registration Number"
-                value={regNo}
-                onChange={(e) => setRegNo(e.target.value)}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
-              />
-            </>
-          )}
-
-          <input
-            type="email"
-            placeholder="Email Address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-2.5 font-semibold rounded-xl text-white transition ${
-              loading
-                ? "bg-blue-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 hover:scale-[1.02]"
-            }`}
-          >
-            {loading
-              ? isSignup
-                ? "Creating..."
-                : "Logging in..."
-              : isSignup
-              ? "Sign Up"
-              : "Login"}
-          </button>
-        </form>
-
-        {message && (
-          <p
-            className={`mt-4 text-center text-sm font-medium ${
-              message.includes("✅") ? "text-green-600" : "text-red-600"
-            }`}
-          >
-            {message}
-          </p>
-        )}
-
-        <div className="text-center mt-6">
-          <p className="text-gray-600 text-sm">
-            {isSignup ? "Already have an account?" : "Don’t have an account yet?"}{" "}
-            <button
-              type="button"
-              onClick={toggleForm}
-              className="text-blue-600 font-medium hover:underline"
-            >
-              {isSignup ? "Login here" : "Sign up"}
-            </button>
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Decorative Background */}
+      <div className="absolute top-0 left-0 w-full h-full -z-10">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-100 rounded-full blur-[100px] opacity-50"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-100 rounded-full blur-[100px] opacity-50"></div>
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-xl grid md:grid-cols-1 gap-0 bg-white rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-blue-100/50 overflow-hidden border border-gray-100"
+      >
+        <div className="p-6 sm:p-12">
+          <div className="mb-10 text-center">
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="inline-flex items-center justify-center h-27 rounded-2xl mb-6"
+            >
+              <img
+                src="https://www.campussync.in/img/logo.png"
+                alt=""
+                className="w-full h-full"
+              />
+            </motion.div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-3">
+              {isSignup ? "Create Account" : "Welcome Back"}
+            </h2>
+            <p className="text-gray-500 font-light">
+              {isSignup
+                ? "Join the campus community today"
+                : "Enter your credentials to access your dashboard"}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <AnimatePresence mode="wait">
+              {isSignup && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-5 overflow-hidden"
+                >
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                    <input
+                      type="text"
+                      placeholder="Full Name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-100 outline-none transition-all font-light"
+                    />
+                  </div>
+                  <div className="relative group">
+                    <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                    <input
+                      type="text"
+                      placeholder="Registration Number"
+                      value={regNo}
+                      onChange={(e) => setRegNo(e.target.value)}
+                      required
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-100 outline-none transition-all font-light"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="relative group">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-100 outline-none transition-all font-light"
+              />
+            </div>
+
+            <div className="relative group">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-100 outline-none transition-all font-light"
+              />
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200 disabled:opacity-70 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  {isSignup ? "Create Account" : "Sign In"}
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
+            </motion.button>
+          </form>
+
+          <div className="mt-10 pt-8 border-t border-gray-50 text-center">
+            <p className="text-gray-500 font-light">
+              {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
+              <button
+                type="button"
+                onClick={toggleForm}
+                className="text-blue-600 font-bold hover:text-blue-700 transition-colors"
+              >
+                {isSignup ? "Sign In" : "Sign Up"}
+              </button>
+            </p>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

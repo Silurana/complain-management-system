@@ -16,14 +16,21 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     regiNo: {
-      type: String,
+      type: Number,
       required: true,
       unique: true,
     },
     role: {
       type: String,
-      enum: ["student", "admin"],
       default: "student",
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   { timestamps: true }
