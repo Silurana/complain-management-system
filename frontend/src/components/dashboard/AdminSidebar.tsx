@@ -33,7 +33,7 @@ export const AdminSidebar = ({
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 w-80 bg-white border-r border-gray-100 flex flex-col z-[60] transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 w-80 bg-white border-r border-gray-100 flex flex-col z-60 transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
         }`}
       >
