@@ -39,7 +39,7 @@ if (ENV.node_env === "development") {
 // Standard Middleware
 app.use(
   cors({
-    origin: ENV.cors_origin,
+    origin: true,
     credentials: true,
   })
 );

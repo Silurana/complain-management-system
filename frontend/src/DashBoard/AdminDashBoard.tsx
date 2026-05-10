@@ -15,6 +15,7 @@ import { Modal } from "../components/shared/Modal";
 import { AdminSidebar } from "../components/dashboard/AdminSidebar";
 import { AdminHeader } from "../components/dashboard/AdminHeader";
 import { AdminProfileView } from "../components/dashboard/AdminProfileView";
+import { DashboardSkeleton } from "../components/shared/SkeletonLoader";
 import API_BASE_URL from "../apiConfig";
 
 const AdminDashboard = () => {
@@ -28,6 +29,7 @@ const AdminDashboard = () => {
   });
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isFetching, setIsFetching] = useState(true);
   const [profile, setProfile] = useState<AdminProfile>({
     fullName: "",
     email: "",
@@ -69,6 +71,7 @@ const AdminDashboard = () => {
     email: "",
     password: "",
     regNo: "",
+    department: "",
   });
 
   // UI States
@@ -80,10 +83,10 @@ const AdminDashboard = () => {
     useState<string>("All");
 
   useEffect(() => {
-    fetchStats();
-    fetchComplaints();
-    fetchUsers();
-    fetchProfile();
+    setIsFetching(true);
+    Promise.all([fetchStats(), fetchComplaints(), fetchUsers(), fetchProfile()]).finally(() => {
+      setIsFetching(false);
+    });
 
     // Real-time auto-refresh (every 30 seconds)
     const interval = setInterval(() => {
@@ -107,12 +110,13 @@ const AdminDashboard = () => {
           email: newAdmin.email,
           password: newAdmin.password,
           regiNo: newAdmin.regNo,
+          department: newAdmin.department,
         }),
       });
       if (res.ok) {
         toast.success("New admin added successfully");
         setAddAdminModal(false);
-        setNewAdmin({ username: "", email: "", password: "", regNo: "" });
+        setNewAdmin({ username: "", email: "", password: "", regNo: "", department: "" });
       } else {
         const data = await res.json();
         toast.error(data.message || "Failed to add admin");
@@ -356,13 +360,16 @@ const AdminDashboard = () => {
           className="flex-1 p-6 lg:p-12 overflow-y-auto transition-all duration-700"
         >
           <AnimatePresence mode="wait">
-            <motion.div
-              key={view}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-            >
+            {isFetching ? (
+              <DashboardSkeleton />
+            ) : (
+              <motion.div
+                key={view}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+              >
               {view === "dashboard" && (
                 <AdminOverview
                   stats={stats}
@@ -392,6 +399,7 @@ const AdminDashboard = () => {
               {view === "users" && (
                 <AdminUsers
                   users={users}
+                  currentUserEmail={profile.email}
                   onAddAdmin={() => setAddAdminModal(true)}
                   onDeleteUser={deleteUser}
                 />
@@ -405,6 +413,7 @@ const AdminDashboard = () => {
                 />
               )}
             </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </main>
@@ -626,6 +635,25 @@ const AdminDashboard = () => {
               className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
               required
             />
+            <select
+              value={newAdmin.department}
+              onChange={(e) =>
+                setNewAdmin({ ...newAdmin, department: e.target.value })
+              }
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-indigo-300 transition-colors"
+              required
+            >
+              <option value="">Select Department (or All for Super Admin)</option>
+              <option value="All">All (Super Admin)</option>
+              <option value="Canteen">Canteen</option>
+              <option value="Electrical">Electrical</option>
+              <option value="Water">Water</option>
+              <option value="Housekeeper">Housekeeping</option>
+              <option value="Academic">Academic Affairs</option>
+              <option value="Hostel">Hostel Management</option>
+              <option value="Fees">Fees Management</option>
+              <option value="Classroom">Classroom Management</option>
+            </select>
           </div>
           <button
             type="submit"

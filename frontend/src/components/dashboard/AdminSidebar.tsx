@@ -22,6 +22,13 @@ export const AdminSidebar = ({
   view,
   handleViewChange,
 }: AdminSidebarProps) => {
+  // Helper function to read cookie by name
+  const getCookie = (name: string) => {
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? match[2] : null;
+  };
+  const role = getCookie("role");
+
   return (
     <>
       <aside
@@ -50,7 +57,7 @@ export const AdminSidebar = ({
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
               { id: "complaints", label: "Complaints", icon: FileText },
-              { id: "users", label: "Students", icon: User },
+              ...(role === "superadmin" ? [{ id: "users", label: "Users & Admins", icon: User }] : []),
               { id: "profile", label: "Admin", icon: Edit },
             ].map((v) => (
               <button

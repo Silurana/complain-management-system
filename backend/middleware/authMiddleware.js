@@ -18,16 +18,23 @@ const authMiddleware = (req, res, next) => {
 };
 
 const adminMiddleware = (req, res, next) => {
-  console.log("Admin Access Attempt - User Role:", req.user?.role);
-  if (req.user && req.user.role === "admin") {
+  if (req.user && (req.user.role === "admin" || req.user.role === "superadmin")) {
     next();
   } else {
-    console.warn("Access Denied: User is not an admin");
     res.status(403).json({ message: "Forbidden: Admins only" });
+  }
+};
+
+const superAdminMiddleware = (req, res, next) => {
+  if (req.user && req.user.role === "superadmin") {
+    next();
+  } else {
+    res.status(403).json({ message: "Forbidden: Super Admins only" });
   }
 };
 
 module.exports = {
   authMiddleware,
   adminMiddleware,
+  superAdminMiddleware,
 };

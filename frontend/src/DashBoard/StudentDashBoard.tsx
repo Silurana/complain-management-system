@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import type { Stats, Complaint, UserProfile } from "../types";
 import { LoaderOverlay } from "../components/shared/LoaderOverlay";
+import { DashboardSkeleton } from "../components/shared/SkeletonLoader";
 import { Modal } from "../components/shared/Modal";
 import { StudentSidebar } from "../components/dashboard/StudentSidebar";
 import { StudentHeader } from "../components/dashboard/StudentHeader";
@@ -77,11 +78,13 @@ const StudentDashboard = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [complaintFilter, setComplaintFilter] = useState("All");
+  const [isFetching, setIsFetching] = useState(true);
 
   useEffect(() => {
-    fetchStats();
-    fetchComplaints();
-    fetchProfile();
+    setIsFetching(true);
+    Promise.all([fetchStats(), fetchComplaints(), fetchProfile()]).finally(() => {
+      setIsFetching(false);
+    });
   }, []);
 
   const fetchStats = async () => {
@@ -297,6 +300,9 @@ const StudentDashboard = () => {
           className={`flex-1 p-6 lg:p-12 overflow-y-auto transition-all duration-700`}
         >
           <AnimatePresence mode="wait">
+            {isFetching ? (
+              <DashboardSkeleton />
+            ) : (
             <motion.div
               key={view}
               initial={{ opacity: 0, y: 20 }}
@@ -356,8 +362,8 @@ const StudentDashboard = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="w-full md:w-[300px] h-[300px] min-h-0">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <div className="w-full md:w-[300px] h-[300px] mt-4">
+                      <ResponsiveContainer width="99%" height={300}>
                         <PieChart>
                           <Pie
                             data={[
@@ -522,6 +528,10 @@ const StudentDashboard = () => {
                           required
                         >
                           <option value="">Select Department</option>
+                          <option value="Canteen">Canteen</option>
+                          <option value="Electrical">Electrical</option>
+                          <option value="Water">Water</option>
+                          <option value="Housekeeper">Housekeeping</option>
                           <option value="Academic">Academic Affairs</option>
                           <option value="Hostel">Hostel Management</option>
                           <option value="Fees">Fees Management</option>
@@ -621,6 +631,7 @@ const StudentDashboard = () => {
                 />
               )}
             </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </main>

@@ -53,7 +53,7 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ id: user._id, role: user.role }, ENV.jwt_secret, {
+    const token = jwt.sign({ id: user._id, role: user.role, department: user.department }, ENV.jwt_secret, {
       expiresIn: ENV.jwt_expires_in,
     });
 
@@ -69,8 +69,16 @@ const login = async (req, res) => {
       secure: ENV.node_env === "production",
       sameSite: ENV.node_env === "production" ? "none" : "lax",
     });
+    
+    if (user.department) {
+      res.cookie("department", user.department, {
+        httpOnly: false,
+        secure: ENV.node_env === "production",
+        sameSite: ENV.node_env === "production" ? "none" : "lax",
+      });
+    }
 
-    res.json({ message: "Login successful", role: user.role });
+    res.json({ message: "Login successful", role: user.role, department: user.department });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -87,7 +95,7 @@ const logout = (req, res) => {
 // Get Profile
 const getProfile = async (req, res) => {
   try {
-    const Model = req.user.role === "admin" ? Admin : User;
+    const Model = (req.user.role === "admin" || req.user.role === "superadmin") ? Admin : User;
     const user = await Model.findById(req.user.id).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({
@@ -105,7 +113,7 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { fullName, email, regNo } = req.body;
-    const Model = req.user.role === "admin" ? Admin : User;
+    const Model = (req.user.role === "admin" || req.user.role === "superadmin") ? Admin : User;
     const user = await Model.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -125,7 +133,7 @@ const updateProfile = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const Model = req.user.role === "admin" ? Admin : User;
+    const Model = (req.user.role === "admin" || req.user.role === "superadmin") ? Admin : User;
     const user = await Model.findById(req.user.id);
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);

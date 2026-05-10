@@ -5,14 +5,27 @@ const bcrypt = require("bcryptjs");
 
 const getAllStudents = async (req, res) => {
   try {
-    const users = await User.find({ role: "student" }).select("-password");
-    const formatted = users.map((u) => ({
+    const students = await User.find({ role: "student" }).select("-password");
+    const admins = await Admin.find({}).select("-password");
+    
+    const formattedStudents = students.map((u) => ({
       id: u._id,
       fullName: u.username,
       email: u.email,
       regNo: u.regiNo,
+      role: "student"
     }));
-    res.json(formatted);
+
+    const formattedAdmins = admins.map((a) => ({
+      id: a._id,
+      fullName: a.username,
+      email: a.email,
+      regNo: a.regiNo,
+      role: a.role || "admin",
+      department: a.department || "All"
+    }));
+
+    res.json([...formattedStudents, ...formattedAdmins]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -22,10 +35,26 @@ const getAllStudents = async (req, res) => {
 const deleteUserByEmail = async (req, res) => {
   try {
     const { email } = req.params;
-    const user = await User.findOneAndDelete({ email: email });
+    let user = await User.findOne({ email: email });
+    let isStudent = true;
     
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      user = await Admin.findOne({ email: email });
+      isStudent = false;
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: "User or Admin not found" });
+    }
+
+    if (user._id.toString() === req.user.id) {
+      return res.status(403).json({ message: "You cannot delete your own account." });
+    }
+
+    if (isStudent) {
+      await User.findOneAndDelete({ email: email });
+    } else {
+      await Admin.findOneAndDelete({ email: email });
     }
 
     // Delete all complaints by this user
@@ -40,7 +69,7 @@ const deleteUserByEmail = async (req, res) => {
 
 const createAdmin = async (req, res) => {
     try {
-      const { email, password, regiNo } = req.body;
+      const { email, password, regiNo, department } = req.body;
       const username = req.body.username || req.body.name;
   
       const existingUser = await User.findOne({ email });
@@ -56,7 +85,8 @@ const createAdmin = async (req, res) => {
         email,
         password: hashedPassword,
         regiNo,
-        role: "admin",
+        role: (!department || department === "All") ? "superadmin" : "admin",
+        department: department || "All",
       });
   
       await newAdmin.save();

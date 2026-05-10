@@ -15,10 +15,11 @@ const {
 } = require("../controllers/complaintController");
 const { authMiddleware } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
+const { validate, signupSchema, loginSchema, createComplaintSchema } = require("../middleware/validate");
 
 // Auth Routes
-router.post("/signup", signup);
-router.post("/login", login);
+router.post("/signup", validate(signupSchema), signup);
+router.post("/login", validate(loginSchema), login);
 router.get("/logout", logout);
 
 // Profile Routes (Protected)
@@ -31,6 +32,6 @@ router.put("/changePassword", changePassword);
 // Complaint Routes (Protected)
 router.get("/stats", getStudentStats);
 router.get("/complaints", getStudentComplaints);
-router.post("/complaints", upload.single("image"), createComplaint);
+router.post("/complaints", upload.single("image"), validate(createComplaintSchema), createComplaint);
 
 module.exports = router;

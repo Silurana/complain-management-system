@@ -74,6 +74,26 @@ export const ComplaintItem = ({
           </div>
         </div>
       </div>
+      
+      {/* Audit Trail Timeline */}
+      {complaint.history && complaint.history.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-gray-100">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Audit Trail</p>
+          <div className="space-y-4 relative before:absolute before:inset-0 before:ml-1.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-200 before:to-transparent">
+            {complaint.history.map((log, idx) => (
+              <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                <div className="flex items-center justify-center w-3 h-3 rounded-full border border-white bg-indigo-300 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 ml-[2px] md:ml-0 z-10"></div>
+                <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl border border-gray-100 bg-white shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <time className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">{new Date(log.timestamp).toLocaleString()}</time>
+                  </div>
+                  <div className="text-xs text-gray-600">{log.message}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

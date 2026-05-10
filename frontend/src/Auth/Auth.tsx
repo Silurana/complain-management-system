@@ -26,7 +26,7 @@ const AuthPage = () => {
   const toggleForm = () => {
     setIsSignup(!isSignup);
   };
-
+  
   // Helper function to read cookie by name
   const getCookie = (name: string) => {
     const match = document.cookie.match(
@@ -73,7 +73,7 @@ const AuthPage = () => {
         console.log(role);
 
         setTimeout(() => {
-          if (role === "admin") {
+          if (role === "admin" || role === "superadmin") {
             window.open("/admindashboard", "_blank");
             navigate("/auth"); // Stay on auth or redirect elsewhere in current tab
           } else {

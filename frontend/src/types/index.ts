@@ -17,6 +17,8 @@ export interface Complaint {
   status: string;
   response: string;
   imageUrl?: string;
+  createdAt?: string;
+  history?: { message: string; timestamp: string }[];
   user?: {
     fullName: string;
     email: string;
@@ -27,6 +29,8 @@ export interface UserProfile {
   fullName: string;
   email: string;
   regNo: string;
+  role?: string;
+  department?: string;
 }
 
 export interface AdminProfile {

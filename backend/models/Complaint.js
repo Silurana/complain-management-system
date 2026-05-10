@@ -32,6 +32,12 @@ const complaintSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    history: [
+      {
+        message: String,
+        timestamp: { type: Date, default: Date.now },
+      }
+    ],
   },
   { timestamps: true },
 );

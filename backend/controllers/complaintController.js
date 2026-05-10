@@ -13,6 +13,7 @@ const createComplaint = async (req, res) => {
       description,
       userId: req.user.id,
       imageUrl,
+      history: [{ message: "Complaint raised by student." }],
     });
 
     await newComplaint.save();
@@ -35,6 +36,8 @@ const getStudentComplaints = async (req, res) => {
       status: c.status,
       response: c.response,
       imageUrl: c.imageUrl ? `${req.protocol}://${req.get("host")}/${c.imageUrl}` : null,
+      createdAt: c.createdAt,
+      history: c.history,
     }));
     res.json(formatted);
   } catch (err) {
@@ -79,7 +82,8 @@ const deleteComplaint = async (req, res) => {
 // Get All Complaints
 const getAllComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find().populate("userId").sort({ createdAt: -1 });
+    const filter = (req.user.role === 'admin' && req.user.department && req.user.department !== 'All') ? { subject: req.user.department } : {};
+    const complaints = await Complaint.find(filter).populate("userId").sort({ createdAt: -1 });
     const formatted = complaints.map((c) => ({
       id: c._id,
       title: c.title,
@@ -89,6 +93,8 @@ const getAllComplaints = async (req, res) => {
       response: c.response,
       imageUrl: c.imageUrl ? `${req.protocol}://${req.get("host")}/${c.imageUrl}` : null,
       user: c.userId ? { fullName: c.userId.username, email: c.userId.email } : null,
+      createdAt: c.createdAt,
+      history: c.history,
     }));
     res.json(formatted);
   } catch (err) {
@@ -100,14 +106,17 @@ const getAllComplaints = async (req, res) => {
 // Get Admin Stats
 const getAdminStats = async (req, res) => {
   try {
-    const total = await Complaint.countDocuments();
-    const pending = await Complaint.countDocuments({ status: "Pending" });
-    const in_progress = await Complaint.countDocuments({ status: "In Progress" });
-    const resolved = await Complaint.countDocuments({ status: "Resolved" });
-    const rejected = await Complaint.countDocuments({ status: "Rejected" });
+    const filter = (req.user.role === 'admin' && req.user.department && req.user.department !== 'All') ? { subject: req.user.department } : {};
+    
+    const total = await Complaint.countDocuments(filter);
+    const pending = await Complaint.countDocuments({ ...filter, status: "Pending" });
+    const in_progress = await Complaint.countDocuments({ ...filter, status: "In Progress" });
+    const resolved = await Complaint.countDocuments({ ...filter, status: "Resolved" });
+    const rejected = await Complaint.countDocuments({ ...filter, status: "Rejected" });
 
     // Aggregation for Category Distribution (Subject-wise)
     const categoryStats = await Complaint.aggregate([
+      { $match: filter },
       { $group: { _id: "$subject", value: { $sum: 1 } } },
       { $project: { name: "$_id", value: 1, _id: 0 } },
       { $sort: { value: -1 } }
@@ -118,7 +127,7 @@ const getAdminStats = async (req, res) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const timeSeriesStats = await Complaint.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      { $match: { createdAt: { $gte: thirtyDaysAgo }, ...filter } },
       {
         $group: {
           _id: { $dateToString: { format: "%b %d", date: "$createdAt" } },
@@ -134,7 +143,7 @@ const getAdminStats = async (req, res) => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
     const weeklyStatsRaw = await Complaint.aggregate([
-      { $match: { createdAt: { $gte: sevenDaysAgo } } },
+      { $match: { createdAt: { $gte: sevenDaysAgo }, ...filter } },
       {
         $group: {
           _id: { $dayOfWeek: "$createdAt" },
@@ -173,9 +182,21 @@ const updateComplaint = async (req, res) => {
     const complaint = await Complaint.findById(req.params.id).populate("userId");
     if (!complaint) return res.status(404).json({ message: "Complaint not found" });
 
+    if (req.user.role === 'admin' && req.user.department && req.user.department !== 'All') {
+      if (complaint.subject !== req.user.department) {
+        return res.status(403).json({ message: "Forbidden: Complaint belongs to a different department" });
+      }
+    }
+
     const oldStatus = complaint.status;
-    if (status) complaint.status = status;
-    if (response !== undefined) complaint.response = response;
+    if (status && status !== oldStatus) {
+      complaint.status = status;
+      complaint.history.push({ message: `Status updated to ${status}.` });
+    }
+    if (response !== undefined && response !== complaint.response) {
+      complaint.response = response;
+      complaint.history.push({ message: "Admin added/updated the resolution response." });
+    }
 
     await complaint.save();
 
@@ -197,8 +218,16 @@ const updateComplaint = async (req, res) => {
 // Admin Delete Complaint
 const adminDeleteComplaint = async (req, res) => {
   try {
-    const complaint = await Complaint.findByIdAndDelete(req.params.id);
+    const complaint = await Complaint.findById(req.params.id);
     if (!complaint) return res.status(404).json({ message: "Complaint not found" });
+
+    if (req.user.role === 'admin' && req.user.department && req.user.department !== 'All') {
+      if (complaint.subject !== req.user.department) {
+        return res.status(403).json({ message: "Forbidden: Complaint belongs to a different department" });
+      }
+    }
+
+    await Complaint.findByIdAndDelete(req.params.id);
     res.json({ message: "Complaint deleted" });
   } catch (err) {
     console.error(err);

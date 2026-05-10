@@ -38,7 +38,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: "TOTAL STUDENTS", value: users.length, icon: UserPlus, color: "text-indigo-600", bg: "bg-white" },
+          { label: "TOTAL STUDENTS", value: users.filter(u => u.role === "student" || !u.role).length, icon: UserPlus, color: "text-indigo-600", bg: "bg-white" },
           { label: "RESOLVED TOTAL", value: stats.resolved, icon: CheckCircle, color: "text-white", bg: "bg-emerald-500", highlight: true },
           { label: "PENDING REPORTS", value: stats.pending, icon: Clock, color: "text-rose-500", bg: "bg-white" },
           { label: "REJECTED TOTAL", value: stats.rejected, icon: XCircle, color: "text-blue-500", bg: "bg-white" },
@@ -69,8 +69,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               <button className="text-gray-300">•••</button>
             </div>
           </div>
-          <div className="h-[300px] w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="h-[300px] w-full mt-4">
+            <ResponsiveContainer width="99%" height={300}>
               <AreaChart data={stats.timeSeriesStats || []}>
                 <defs>
                   <linearGradient id="colorComplaints" x1="0" y1="0" x2="0" y2="1">
@@ -115,8 +115,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <h3 className="text-xl font-bold text-gray-900 tracking-tight">Complaints by Category</h3>
             <button className="text-gray-300">•••</button>
           </div>
-          <div className="h-[300px] w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="h-[300px] w-full mt-4">
+            <ResponsiveContainer width="99%" height={300}>
               <BarChart data={stats.categoryStats || []}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 10 }} />
@@ -134,8 +134,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <h3 className="text-xl font-bold text-gray-900 tracking-tight">Status Distribution</h3>
             <button className="text-gray-300">•••</button>
           </div>
-          <div className="h-[250px] w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="h-[250px] w-full mt-4">
+            <ResponsiveContainer width="99%" height={250}>
               <PieChart>
                 <Pie
                   data={[
@@ -213,8 +213,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <h3 className="text-xl font-bold text-gray-900 tracking-tight">Weekly Complaints</h3>
             <button className="text-gray-300">•••</button>
           </div>
-          <div className="h-[250px] w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="h-[250px] w-full mt-4">
+            <ResponsiveContainer width="99%" height={250}>
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={stats.weeklyStats || []}>
                 <PolarGrid stroke="#f3f4f6" />
                 <PolarAngleAxis dataKey="day" tick={{ fill: "#9ca3af", fontSize: 10 }} />
