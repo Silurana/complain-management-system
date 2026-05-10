@@ -4,11 +4,14 @@ import {
   Save,
   KeyRound,
   UserPlus,
+  Building2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AdminOverview } from "../components/dashboard/AdminOverview";
 import { AdminComplaints } from "../components/dashboard/AdminComplaints";
 import { AdminUsers } from "../components/dashboard/AdminUsers";
+import { AdminDepartments } from "../components/dashboard/AdminDepartments";
+import type { Department } from "../components/dashboard/AdminDepartments";
 import type { Stats, Complaint, UserProfile, AdminProfile } from "../types";
 import { LoaderOverlay } from "../components/shared/LoaderOverlay";
 import { Modal } from "../components/shared/Modal";
@@ -37,8 +40,15 @@ const AdminDashboard = () => {
   });
 
   const [view, setView] = useState<
-    "dashboard" | "complaints" | "users" | "profile"
+    "dashboard" | "complaints" | "users" | "departments" | "profile"
   >("dashboard");
+
+  // Department states
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [addDepartmentModal, setAddDepartmentModal] = useState(false);
+  const [editDepartmentModal, setEditDepartmentModal] = useState(false);
+  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
+  const [deptForm, setDeptForm] = useState({ name: "", code: "" });
 
   // Modal states
   const [editProfileModal, setEditProfileModal] = useState(false);
@@ -84,7 +94,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     setIsFetching(true);
-    Promise.all([fetchStats(), fetchComplaints(), fetchUsers(), fetchProfile()]).finally(() => {
+    Promise.all([fetchStats(), fetchComplaints(), fetchUsers(), fetchProfile(), fetchDepartments()]).finally(() => {
       setIsFetching(false);
     });
 
@@ -335,6 +345,90 @@ const AdminDashboard = () => {
     }, 600);
   };
 
+  // Department CRUD
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/departments`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data: Department[] = await res.json();
+        setDepartments(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddDepartment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE_URL}/departments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(deptForm),
+      });
+      if (res.ok) {
+        toast.success("Department created successfully");
+        setAddDepartmentModal(false);
+        setDeptForm({ name: "", code: "" });
+        fetchDepartments();
+      } else {
+        const data = await res.json();
+        toast.error(data.message || "Failed to create department");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred");
+    }
+  };
+
+  const handleUpdateDepartment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDepartment) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/departments/${selectedDepartment._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(deptForm),
+      });
+      if (res.ok) {
+        toast.success("Department updated successfully");
+        setEditDepartmentModal(false);
+        setSelectedDepartment(null);
+        setDeptForm({ name: "", code: "" });
+        fetchDepartments();
+      } else {
+        const data = await res.json();
+        toast.error(data.message || "Failed to update department");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred");
+    }
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this department?")) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/departments/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        toast.success("Department deleted");
+        fetchDepartments();
+      } else {
+        toast.error("Failed to delete department");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred");
+    }
+  };
+
 
 
   return (
@@ -402,6 +496,22 @@ const AdminDashboard = () => {
                   currentUserEmail={profile.email}
                   onAddAdmin={() => setAddAdminModal(true)}
                   onDeleteUser={deleteUser}
+                />
+              )}
+
+              {view === "departments" && (
+                <AdminDepartments
+                  departments={departments}
+                  onAdd={() => {
+                    setDeptForm({ name: "", code: "" });
+                    setAddDepartmentModal(true);
+                  }}
+                  onEdit={(dept) => {
+                    setSelectedDepartment(dept);
+                    setDeptForm({ name: dept.name, code: dept.code });
+                    setEditDepartmentModal(true);
+                  }}
+                  onDelete={handleDeleteDepartment}
                 />
               )}
 
@@ -645,14 +755,11 @@ const AdminDashboard = () => {
             >
               <option value="">Select Department (or All for Super Admin)</option>
               <option value="All">All (Super Admin)</option>
-              <option value="Canteen">Canteen</option>
-              <option value="Electrical">Electrical</option>
-              <option value="Water">Water</option>
-              <option value="Housekeeper">Housekeeping</option>
-              <option value="Academic">Academic Affairs</option>
-              <option value="Hostel">Hostel Management</option>
-              <option value="Fees">Fees Management</option>
-              <option value="Classroom">Classroom Management</option>
+              {departments.map((dept) => (
+                <option key={dept._id} value={dept.name}>
+                  {dept.name}
+                </option>
+              ))}
             </select>
           </div>
           <button
@@ -660,6 +767,98 @@ const AdminDashboard = () => {
             className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-black transition-all flex items-center justify-center gap-2"
           >
             <UserPlus size={18} /> Register Admin
+          </button>
+        </form>
+      </Modal>
+
+      {/* Add Department Modal */}
+      <Modal
+        open={addDepartmentModal}
+        onClose={() => setAddDepartmentModal(false)}
+        title="New Department"
+      >
+        <form onSubmit={handleAddDepartment} className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">
+                Department Name
+              </label>
+              <input
+                id="dept-name-input"
+                type="text"
+                placeholder="e.g. Electrical Engineering"
+                value={deptForm.name}
+                onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-amber-300 transition-colors"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">
+                Department Code
+              </label>
+              <input
+                id="dept-code-input"
+                type="text"
+                placeholder="e.g. EE"
+                value={deptForm.code}
+                onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value.toUpperCase() })}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-amber-300 transition-colors font-mono uppercase tracking-widest"
+                required
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-black transition-all flex items-center justify-center gap-2"
+          >
+            <Building2 size={18} /> Create Department
+          </button>
+        </form>
+      </Modal>
+
+      {/* Edit Department Modal */}
+      <Modal
+        open={editDepartmentModal}
+        onClose={() => setEditDepartmentModal(false)}
+        title="Edit Department"
+      >
+        <form onSubmit={handleUpdateDepartment} className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">
+                Department Name
+              </label>
+              <input
+                id="dept-edit-name-input"
+                type="text"
+                placeholder="Department Name"
+                value={deptForm.name}
+                onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-amber-300 transition-colors"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">
+                Department Code
+              </label>
+              <input
+                id="dept-edit-code-input"
+                type="text"
+                placeholder="Department Code"
+                value={deptForm.code}
+                onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value.toUpperCase() })}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 outline-none focus:border-amber-300 transition-colors font-mono uppercase tracking-widest"
+                required
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-amber-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-amber-100 hover:bg-amber-700 transition-all flex items-center justify-center gap-2"
+          >
+            <Save size={18} /> Update Department
           </button>
         </form>
       </Modal>

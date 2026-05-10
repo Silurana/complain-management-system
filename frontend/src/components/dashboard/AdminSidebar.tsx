@@ -6,6 +6,7 @@ import {
   User,
   Edit,
   LogOut,
+  Building2,
 } from "lucide-react";
 import API_BASE_URL from "../../apiConfig";
 
@@ -13,7 +14,7 @@ interface AdminSidebarProps {
   isMobileMenuOpen: boolean;
   setIsMobileMenuOpen: (val: boolean) => void;
   view: string;
-  handleViewChange: (v: "dashboard" | "complaints" | "users" | "profile") => void;
+  handleViewChange: (v: "dashboard" | "complaints" | "users" | "departments" | "profile") => void;
 }
 
 export const AdminSidebar = ({
@@ -58,11 +59,12 @@ export const AdminSidebar = ({
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
               { id: "complaints", label: "Complaints", icon: FileText },
               ...(role === "superadmin" ? [{ id: "users", label: "Users & Admins", icon: User }] : []),
+              ...(role === "superadmin" ? [{ id: "departments", label: "Departments", icon: Building2 }] : []),
               { id: "profile", label: "Admin", icon: Edit },
             ].map((v) => (
               <button
                 key={v.id}
-                onClick={() => handleViewChange(v.id as "dashboard" | "complaints" | "users" | "profile")}
+                onClick={() => handleViewChange(v.id as "dashboard" | "complaints" | "users" | "departments" | "profile")}
                 className={`flex items-center gap-4 px-5 py-3.5 rounded-xl font-semibold transition-all duration-300 ${
                   view === v.id
                     ? "bg-rose-600 text-white shadow-lg shadow-rose-100"

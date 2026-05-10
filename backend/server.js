@@ -6,6 +6,7 @@ const ENV = require("./config/env");
 
 const userRoutes = require("./routes/userRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const departmentRoutes = require("./routes/departmentRoutes");
 
 const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
@@ -59,6 +60,7 @@ mongoose
 // Routes
 app.use("/user", userRoutes);
 app.use("/admin", adminRoutes);
+app.use("/departments", departmentRoutes);
 
 
 const { errorHandler, notFound } = require("./middleware/errorMiddleware");

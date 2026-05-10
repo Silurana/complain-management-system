@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "student",
     },
+    department: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Department",
+    },
     createdAt: {
       type: Date,
       default: Date.now,

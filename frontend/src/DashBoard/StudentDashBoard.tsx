@@ -20,6 +20,7 @@ import {
   Tooltip,
 } from "recharts";
 import type { Stats, Complaint, UserProfile } from "../types";
+import type { Department } from "../components/dashboard/AdminDepartments";
 import { LoaderOverlay } from "../components/shared/LoaderOverlay";
 import { DashboardSkeleton } from "../components/shared/SkeletonLoader";
 import { Modal } from "../components/shared/Modal";
@@ -79,13 +80,26 @@ const StudentDashboard = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [complaintFilter, setComplaintFilter] = useState("All");
   const [isFetching, setIsFetching] = useState(true);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
     setIsFetching(true);
-    Promise.all([fetchStats(), fetchComplaints(), fetchProfile()]).finally(() => {
+    Promise.all([fetchStats(), fetchComplaints(), fetchProfile(), fetchDepartments()]).finally(() => {
       setIsFetching(false);
     });
   }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/departments`);
+      if (res.ok) {
+        const data: Department[] = await res.json();
+        setDepartments(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -528,14 +542,11 @@ const StudentDashboard = () => {
                           required
                         >
                           <option value="">Select Department</option>
-                          <option value="Canteen">Canteen</option>
-                          <option value="Electrical">Electrical</option>
-                          <option value="Water">Water</option>
-                          <option value="Housekeeper">Housekeeping</option>
-                          <option value="Academic">Academic Affairs</option>
-                          <option value="Hostel">Hostel Management</option>
-                          <option value="Fees">Fees Management</option>
-                          <option value="Classroom">Classroom Management</option>
+                          {departments.map((dept) => (
+                            <option key={dept._id} value={dept.name}>
+                              {dept.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
